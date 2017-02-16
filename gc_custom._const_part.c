@@ -174,25 +174,6 @@ int gc_custom_walk_struct(block_t *block)
 {
     gc_custom_scan_struct(get_data_start(block), block_get_type(block));
 }
-/**
- * Scans the block of type MEM_TYPE_ARRAY
- * @par block block of memory of type MEM_TYPE_ARRAY
- * @return 0 if everything went well, error code otherwise
- */
-int gc_custom_walk_array(block_t *block)
-{
-    if(block_is_struct_block(block))
-    {
-        void *ptr;
-        type_info_t *info;
-        
-        info = block_get_info(block);
-        for(ptr = get_data_start(block); ptr < get_data_end(block); ptr += info->size)
-        {
-            gc_custom_scan_struct(ptr, block_get_type(block));
-        }
-    }
-}
 
 /**
  * Returns the remaining space in bytes that collector has available
