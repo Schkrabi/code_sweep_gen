@@ -26,12 +26,15 @@ int gc_custom_init()
     {
         return 1;
     }
-    gc_cheney_base_to_space = init_block_from_chunk(chunk, (2*SEMISPACE_SIZE) - sizeof(block_t));
+//     gc_cheney_base_to_space = init_block_from_chunk(chunk, (2*SEMISPACE_SIZE) - sizeof(block_t));
+    gc_cheney_base_to_space = (block_t*)((uint64_t)chunk + SEMISPACE_SIZE);
     if(gc_cheney_base_to_space == NULL)
     {
         return 2;
     }
-    gc_cheney_base_from_space = split_block(&gc_cheney_base_to_space, SEMISPACE_SIZE - sizeof(block_t));
+//     gc_cheney_base_from_space = gc_cheney_base_get_mem((void*)&gc_cheney_base_to_space, SEMISPACE_SIZE - sizeof(block_t));
+    gc_cheney_base_from_space = chunk;
+    gc_cheney_base_semispace_middle = gc_cheney_base_to_space;
     if(gc_cheney_base_from_space == NULL)
     {
         return 3;

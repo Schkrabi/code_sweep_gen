@@ -6,6 +6,7 @@
 #include "gc_constants.h"
 #include "cyclic_list.h"
 #include "cdouble_list.h"
+#include "entanglement.h"
 
 #define XGEN_TYPE_TABLE(x)          \
             x(void, TYPE_PTR)       \
@@ -14,7 +15,8 @@
             x(cdlist, TYPE_CDLIST_T)\
             x(double, TYPE_DOUBLE)  \
             x(int, TYPE_INT)        \
-            x(test_struct, TYPE_TEST_STRUCT_T)
+            x(test_struct, TYPE_TEST_STRUCT_T) \
+            x(entanglement, TYPE_ENTANGLEMENT_T)
             
             
 #define DESC_VAR_NAME(TYPE) TYPE ## _descriptor
@@ -158,7 +160,7 @@ int make_gc_scan_struct_code_per_type(char *out, type_info_t *info, int type_num
             size_t  offset;
             
             offset = info->offsets[i];
-            len += add_code_row(out + len, indent + 1, "*(void**)(ptr + %u) = gc_custom_scan_ptr(ptr + %u);", (unsigned)offset, (unsigned)offset);
+            len += add_code_row(out + len, indent + 1, "*(void**)(ptr + %u) = gc_custom_scan_ptr(*(void**)(ptr + %u));", (unsigned)offset, (unsigned)offset);
         }
         len += add_code_row(out + len, indent + 1, "break;");
     }
@@ -218,7 +220,7 @@ int make_gc_scan_ptr_code(char *out)
     len += add_code_row(out + len, 0, "void *gc_custom_scan_ptr(void *ptr)");
     len += add_code_row(out + len, 0, "{");
     len += add_code_row(out + len, 1, "block_t *block;");
-    len += add_code_row(out + len, 1, "for(block = gc_cheney_base_from_space; block < (block_t*)gc_cheney_base_semispace_end((void*)gc_cheney_base_from_space); block = next_block(block))");
+    len += add_code_row(out + len, 1, "for(block = gc_cheney_base_from_space; block < gc_cheney_base_remaining_block; block = next_block(block))");
     len += add_code_row(out + len, 1, "{");
     len += add_code_row(out + len, 2, "if(is_pointer_to(block, ptr))");
     len += add_code_row(out + len, 2, "{");
