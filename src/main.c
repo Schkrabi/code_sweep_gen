@@ -23,7 +23,8 @@
 #define XGEN_MAKE_DESCRIPTOR_VARIABLES(TYPE, NUM) type_info_t DESC_VAR_NAME(TYPE);
 #define XGEN_MAKE_DESCRIPTORS(TYPE, NUM) TYPE ## _make_descriptor(&DESC_VAR_NAME(TYPE));
 #define XGEN_GC_SCAN_STRUCT(TYPE, NUM) len += make_gc_scan_struct_code_per_type(out + len, &DESC_VAR_NAME(TYPE), NUM, 1);
-#define XGEN_GC_SCAN_PTR(TYPE, NUM) len += make_gc_scan_ptr_code_per_type(out + len, &DESC_VAR_NAME(TYPE), NUM, 4);
+#define XGEN_GC_SCAN_PTR_ATOM(TYPE, NUM) len += make_gc_scan_ptr_code_per_type_atom(out + len, &DESC_VAR_NAME(TYPE), NUM, 6);
+#define XGEN_GC_SCAN_PTR_ARRAY(TYPE, NUM) len += make_gc_scan_ptr_code_per_type_array(out + len, &DESC_VAR_NAME(TYPE), NUM, 6);    
 #define XGEN_GC_WALK_ARRAY(TYPE, NUM) len += make_gc_walk_array_per_type(out + len, &DESC_VAR_NAME(TYPE), NUM, 2);
             
 #define PART_FILE_PATH "/home/schkrabi/Dokumenty/C/code_sweep_gen/gc_custom._const_part.c"
@@ -91,8 +92,9 @@ int void_make_descriptor(type_info_t *info)
 {
     info->size = sizeof(void*);
     info->number_of_references = 1;
-    info->offsets = (unsigned long*)malloc(1*sizeof(unsigned long));
-    info->offsets[0] = 0;
+    info->references = (ptr_info_t*)malloc(1*sizeof(ptr_info_t));
+    info->references[0].offset = 0;
+    info->references[0].type = TYPE_PTR;
     
     return 0;
 }
@@ -101,7 +103,7 @@ int double_make_descriptor(type_info_t *info)
 {
     info->size = sizeof(double);
     info->number_of_references = 0;
-    info->offsets = NULL;
+    info->references = NULL;
     
     return 0;
 }
@@ -109,7 +111,7 @@ int int_make_descriptor(type_info_t *info)
 {
     info->size = sizeof(int);
     info->number_of_references = 0;
-    info->offsets = NULL;
+    info->references = NULL;
     
     return 0;
 }
@@ -119,9 +121,11 @@ int test_struct_make_descriptor(type_info_t *info)
     test_struct_t test_instance;
     info->size = sizeof(test_struct_t);
     info->number_of_references = 2;
-    info->offsets = malloc(2*sizeof(unsigned long));
-    info->offsets[0] = (unsigned long)&test_instance.ptr1 - (unsigned long)&test_instance;
-    info->offsets[1] = (unsigned long)&test_instance.ptr2 - (unsigned long)&test_instance;
+    info->references = malloc(2*sizeof(ptr_info_t));
+    info->references[0].offset = (uint64_t)&test_instance.ptr1 - (unsigned long)&test_instance;
+    info->references[0].type = TYPE_PTR;
+    info->references[1].offset = (uint64_t)&test_instance.ptr2 - (unsigned long)&test_instance;
+    info->references[1].type = TYPE_PTR;
     
     return 0;
 }
@@ -158,9 +162,11 @@ int make_gc_scan_struct_code_per_type(char *out, type_info_t *info, int type_num
         for(i = 0; i < info->number_of_references; i++)
         {
             size_t  offset;
+            uint64_t type;
             
-            offset = info->offsets[i];
-            len += add_code_row(out + len, indent + 1, "*(void**)(ptr + %u) = gc_custom_scan_ptr(*(void**)(ptr + %u));", (unsigned)offset, (unsigned)offset);
+            offset = info->references[i].offset;
+            type = info->references[i].type;
+            len += add_code_row(out + len, indent + 1, "*(void**)(ptr + %u) = gc_custom_scan_ptr(*(void**)(ptr + %u), %u);", (unsigned)offset, (unsigned)offset, (unsigned)type);
         }
         len += add_code_row(out + len, indent + 1, "break;");
     }
@@ -188,22 +194,26 @@ int make_gc_scan_struct_code(char *out)
     len += add_code_row(out + len, 0, "}");
 }
 
-int make_gc_scan_ptr_code_per_type(char *out, type_info_t *info, int type_num, size_t indent)
+int make_gc_scan_ptr_code_per_type_atom(char *out, type_info_t *info, int type_num, size_t indent)
 {
     size_t len = 0;
     
     len += add_code_row(out + len, indent, "case %d:", type_num);
-    len += add_code_row(out + len, indent + 1, "if(block_is_array(block))");
-    len += add_code_row(out + len, indent + 1, "{");
-    len += add_code_row(out + len, indent + 2, "byte_size = block_get_array_size(block) * %d;", (unsigned)(info->size));
-    len += add_code_row(out + len, indent + 2, "dst = split_block(&gc_cheney_base_remaining_to_space, byte_size);");
-    len += add_code_row(out + len, indent + 2, "memcpy(dst, block, byte_size + %u);", (unsigned)(sizeof(block_t)));
-    len += add_code_row(out + len, indent + 1, "}");
-    len += add_code_row(out + len, indent + 1, "else");
-    len += add_code_row(out + len, indent + 1, "{");
-    len += add_code_row(out + len, indent + 2, "dst = split_block(&gc_cheney_base_remaining_to_space, %d);", atom_alloc_size(info));
-    len += add_code_row(out + len, indent + 2, "memcpy(dst, block, %u);", (unsigned)(atom_alloc_size(info) + sizeof(block_t)));
-    len += add_code_row(out + len, indent + 1, "}");
+    len += add_code_row(out + len, indent + 1, "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, %d);", atom_alloc_size(info));
+    len += add_code_row(out + len, indent + 1, "memcpy(dst, block, %u);", (unsigned)(atom_alloc_size(info) + sizeof(block_t)));
+    len += add_code_row(out + len, indent + 1, "break;");
+    
+    return len;
+}
+
+int make_gc_scan_ptr_code_per_type_array(char *out, type_info_t *info, int type_num, size_t indent)
+{
+    size_t len = 0;
+    
+    len += add_code_row(out + len, indent, "case %d:", type_num);
+    len += add_code_row(out + len, indent + 1, "byte_size = block_get_array_size(block) * %d;", (unsigned)(info->size));
+    len += add_code_row(out + len, indent + 1, "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, byte_size);");
+    len += add_code_row(out + len, indent + 1, "memcpy(dst, block, byte_size + %u);", (unsigned)(sizeof(block_t)));
     len += add_code_row(out + len, indent + 1, "break;");
     
     return len;
@@ -217,35 +227,56 @@ int make_gc_scan_ptr_code(char *out)
     XGEN_TYPE_TABLE(XGEN_MAKE_DESCRIPTORS)
     
     len = 0;
-    len += add_code_row(out + len, 0, "void *gc_custom_scan_ptr(void *ptr)");
+    len += add_code_row(out + len, 0, "void *gc_custom_scan_ptr(void *ptr, uint64_t type)");
     len += add_code_row(out + len, 0, "{");
     len += add_code_row(out + len, 1, "block_t *block;");
     len += add_code_row(out + len, 1, "for(block = gc_cheney_base_from_space; block < gc_cheney_base_remaining_block; block = next_block(block))");
     len += add_code_row(out + len, 1, "{");
-    len += add_code_row(out + len, 2, "if(is_pointer_to(block, ptr))");
+    len += add_code_row(out + len, 2, "if(block_get_type(block) == type || type == TYPE_PTR)");
     len += add_code_row(out + len, 2, "{");
-    len += add_code_row(out + len, 3, "if(!block_has_forward(block))");
+    len += add_code_row(out + len, 3, "if(is_pointer_to(block, ptr))");
     len += add_code_row(out + len, 3, "{");
-    len += add_code_row(out + len, 4, "block_t *dst;");
-    len += add_code_row(out + len, 4, "size_t byte_size;");
-    len += add_code_row(out + len, 4, "switch(block_get_type(block))");
+    len += add_code_row(out + len, 4, "if(!block_has_forward(block))");
     len += add_code_row(out + len, 4, "{");
+    len += add_code_row(out + len, 5, "block_t *dst;");
+    len += add_code_row(out + len, 5, "if(block_is_array(block))");
+    len += add_code_row(out + len, 5, "{");
+    len += add_code_row(out + len, 6, "size_t byte_size;");
+    len += add_code_row(out + len, 6, "switch(block_get_type(block))");
+    len += add_code_row(out + len, 6, "{");
     
-    XGEN_TYPE_TABLE(XGEN_GC_SCAN_PTR)
+    XGEN_TYPE_TABLE(XGEN_GC_SCAN_PTR_ARRAY)
     
-    len += add_code_row(out + len, 4, "default:"); //Default behaviour as std cheney, should not be hit
-    len += add_code_row(out + len, 4, "{");
-    len += add_code_row(out + len, 5, "size_t block_size = block_get_size(block);");
-    len += add_code_row(out + len, 5, "dst = split_block(&gc_cheney_base_remaining_to_space, block_size - sizeof(block_t));");
-    len += add_code_row(out + len, 5, "memcpy(dst, block, block_size);");
+    len += add_code_row(out + len, 6, "default:"); //Default behaviour as std cheney, should not be hit
+    len += add_code_row(out + len, 6, "{"); //code block needed for variable definition!
+    len += add_code_row(out + len, 7, "size_t block_size = block_get_size(block);");
+    len += add_code_row(out + len, 7, "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, block_size - sizeof(block_t));");
+    len += add_code_row(out + len, 7, "memcpy(dst, block, block_size);");
+    len += add_code_row(out + len, 6, "}");
+    len += add_code_row(out + len, 6, "}");
+    len += add_code_row(out + len, 5, "}");
+    len += add_code_row(out + len, 5, "else");
+    len += add_code_row(out + len, 5, "{");
+    len += add_code_row(out + len, 6, "switch(block_get_type(block))");
+    len += add_code_row(out + len, 6, "{");
+    
+    XGEN_TYPE_TABLE(XGEN_GC_SCAN_PTR_ATOM)
+    
+    len += add_code_row(out + len, 6, "default:"); //Default behaviour as std cheney, should not be hit
+    len += add_code_row(out + len, 6, "{"); //code block needed for variable definition!
+    len += add_code_row(out + len, 7, "size_t block_size = block_get_size(block);");
+    len += add_code_row(out + len, 7, "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, block_size - sizeof(block_t));");
+    len += add_code_row(out + len, 7, "memcpy(dst, block, block_size);");
+    len += add_code_row(out + len, 6, "}");
+    len += add_code_row(out + len, 6, "}");
+    len += add_code_row(out + len, 5, "}");
+    
+    len += add_code_row(out + len, 5, "block_set_forward(block, dst);");
+    len += add_code_row(out + len, 5, "return dst;");
     len += add_code_row(out + len, 4, "}");
-    
-    len += add_code_row(out + len, 4, "}");
-    len += add_code_row(out + len, 4, "block_set_forward(block, dst);");
-    len += add_code_row(out + len, 4, "return dst;");
+    len += add_code_row(out + len, 4, "else");
+    len += add_code_row(out + len, 3, "return gc_cheney_base_get_forwarding_addr(ptr, block, block_get_forward(block));");
     len += add_code_row(out + len, 3, "}");
-    len += add_code_row(out + len, 3, "else");
-    len += add_code_row(out + len, 4, "return gc_cheney_base_get_forwarding_addr(ptr, block, block_get_forward(block));");
     len += add_code_row(out + len, 2, "}");
     len += add_code_row(out + len, 1, "}");
     len += add_code_row(out + len, 1, "return NULL;");
