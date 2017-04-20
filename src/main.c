@@ -6,7 +6,7 @@
 #include "gc_constants.h"
 #include "cyclic_list.h"
 #include "cdouble_list.h"
-#include "entanglement.h"
+#include "tarray.h"
 
 #define XGEN_TYPE_TABLE(x)          \
             x(void, TYPE_PTR)       \
@@ -16,7 +16,7 @@
             x(double, TYPE_DOUBLE)  \
             x(int, TYPE_INT)        \
             x(test_struct, TYPE_TEST_STRUCT_T) \
-            x(entanglement, TYPE_ENTANGLEMENT_T)
+            x(tarray, TYPE_TARRAY_T)
             
             
 #define DESC_VAR_NAME(TYPE) TYPE ## _descriptor
@@ -67,6 +67,8 @@ int main(int agrc, char* argv[])
         return 1;
     }
     
+    init_type_table();
+    
     while(!feof(in))
     {
         fgets(buff, BUFF_SIZE, in);
@@ -82,6 +84,7 @@ int main(int agrc, char* argv[])
     len = make_gc_walk_array(buff);
     fprintf(out, "%s", buff);
     
+    cleanup_type_table();
     fclose(in);
     fclose(out);
     
@@ -149,6 +152,9 @@ int add_code_row(char *out, size_t indent, const char* fstr, ...)
     return len;    
 }
 
+#define ARRAY_BLOCK_OFFSET  sizeof(block_t)
+#define ATOM_BLOCK_OFFSET sizeof(uint64_t)
+
 int make_gc_scan_struct_code_per_type(char *out, type_info_t *info, int type_num, size_t indent)
 {
     int i;
@@ -163,16 +169,60 @@ int make_gc_scan_struct_code_per_type(char *out, type_info_t *info, int type_num
         {
             size_t  offset;
             uint64_t type;
+            int is_array;
             
             offset = info->references[i].offset;
-            type = info->references[i].type;
-            len += add_code_row(out + len, indent + 1, "*(void**)(ptr + %u) = gc_custom_scan_ptr(*(void**)(ptr + %u), %u);", (unsigned)offset, (unsigned)offset, (unsigned)type);
+            type = ptr_info_get_type(&info->references[i]);
+            is_array = ptr_info_is_array(&info->references[i]);
+            
+            len += add_code_row(out + len, indent + 1, "scanned = (void**)ptr + %u;", offset);
+            len += add_code_row(out + len, indent + 1, "if(gc_cheney_base_is_old_mem(scanned))");
+            len += add_code_row(out + len, indent + 1, "{");
+            len += add_code_row(out + len, indent + 2,      "block = (block_t*)((art_ptr_t)scanned - %u);", is_array ? ARRAY_BLOCK_OFFSET : ATOM_BLOCK_OFFSET);
+            len += add_code_row(out + len, indent + 2,      "if(block_has_forward(block))");
+            len += add_code_row(out + len, indent + 2,      "{");
+            len += add_code_row(out + len, indent + 3,          "*scanned = gc_cheney_base_get_forwarding_addr(*scanned, block, block_get_forward(block));", offset);
+            len += add_code_row(out + len, indent + 2,      "}");
+            len += add_code_row(out + len, indent + 2,      "else");
+            len += add_code_row(out + len, indent + 2,      "{");
+            
+            if(is_array)
+            {
+                len += add_code_row(out + len, indent + 3,      "size_t byte_size = block_get_array_size(block) * %u;", type_table[type].size);
+                len += add_code_row(out + len, indent + 3,      "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, byte_size);");
+                len += add_code_row(out + len, indent + 3,      "memcpy(block, dst, byte_size + 16);");
+            }
+            else
+            {
+                len += add_code_row(out + len, indent + 3,      "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, %u);", type_table[type].size - sizeof(uint64_t));
+                len += add_code_row(out + len, indent + 3,      "memcpy(block, dst, %u);", type_table[type].size + sizeof(uint64_t));
+            }
+            
+            len += add_code_row(out + len, indent + 3,          "block_set_forward(block, dst);");
+            len += add_code_row(out + len, indent + 3,          "*scanned = dst + %u;", (unsigned)offset, is_array ? ARRAY_BLOCK_OFFSET : ATOM_BLOCK_OFFSET);
+            len += add_code_row(out + len, indent + 2,      "}");
+            len += add_code_row(out + len, indent + 1, "}");
+            
+//             len += add_code_row(out + len, indent + 1, "*(void**)(ptr + %u) = gc_custom_scan_ptr(*(void**)(ptr + %u), %u);", (unsigned)offset, (unsigned)offset, (unsigned)type);
         }
         len += add_code_row(out + len, indent + 1, "break;");
     }
     
     return len;
 }
+
+//         case N:
+//             block = ptr - block_offset;
+//             if(block_has_forward(block))
+//             {
+//                 ptr = block_get_forward(block);
+//             }
+//             else
+//             {
+//                 dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, size);
+//                 memcpy(block, dst, size);
+//                 block_set_forward(block, dst);
+//             }
 
 int make_gc_scan_struct_code(char *out)
 {
@@ -184,6 +234,10 @@ int make_gc_scan_struct_code(char *out)
     
     len += add_code_row(out + len, 0, "int gc_custom_scan_struct(void *ptr, int type)");
     len += add_code_row(out + len, 0, "{");
+    
+    len += add_code_row(out + len, 1, "block_t *block;");
+    len += add_code_row(out + len, 1, "void *dst, **scanned;");
+    
     len += add_code_row(out + len, 1, "switch(type)");
     len += add_code_row(out + len, 1, "{");
     
