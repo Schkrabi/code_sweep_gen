@@ -133,7 +133,7 @@ int gc_custom_collect_from_roots(void *roots[], size_t size)
     
     for(i = 0; i < size; i++)
     {
-      gc_custom_scan_ptr(roots[i], TYPE_PTR); //TODO hotfix!
+      gc_custom_scan_ptr(roots[i], TYPE_PTR, 0); //TODO hotfix!
     }                                                                   
     
     while(todo_ptr < gc_cheney_base_remaining_to_space)
