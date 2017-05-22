@@ -7,6 +7,7 @@
 #include "cyclic_list.h"
 #include "cdouble_list.h"
 #include "tarray.h"
+#include "large_structure.h"
 
 #define XGEN_TYPE_TABLE(x)          \
             x(void, TYPE_PTR)       \
@@ -16,7 +17,8 @@
             x(double, TYPE_DOUBLE)  \
             x(int, TYPE_INT)        \
             x(test_struct, TYPE_TEST_STRUCT_T) \
-            x(tarray, TYPE_TARRAY_T)
+            x(tarray, TYPE_TARRAY_T) \
+            x(large_structure, TYPE_LARGE_STRUCTURE_T)
             
             
 #define DESC_VAR_NAME(TYPE) TYPE ## _descriptor
@@ -29,7 +31,7 @@
             
 #define PART_FILE_PATH "/home/schkrabi/Dokumenty/C/code_sweep_gen/gc_custom._const_part.c"
 #define GEN_FILE_PATH "/home/schkrabi/Dokumenty/C/code_sweep_gen/gc_custom.c"
-#define BUFF_SIZE 10240 //10 KB
+#define BUFF_SIZE 20480 //20 KB
 
 int void_make_descriptor(type_info_t *info);
 int double_make_descriptor(type_info_t *info);
@@ -175,7 +177,7 @@ int make_gc_scan_struct_code_per_type(char *out, type_info_t *info, int type_num
             type = ptr_info_get_type(&info->references[i]);
             is_array = ptr_info_is_array(&info->references[i]);
             
-            len += add_code_row(out + len, indent + 1, "scanned = (void**)ptr + %u;", offset);
+            len += add_code_row(out + len, indent + 1, "scanned = (void**)((art_ptr_t)ptr + %u);", offset);
             len += add_code_row(out + len, indent + 1, "if(gc_cheney_base_is_old_mem(*scanned))");
             len += add_code_row(out + len, indent + 1, "{");
             len += add_code_row(out + len, indent + 2,      "block = (block_t*)((art_ptr_t)*scanned - %u);", is_array ? ARRAY_BLOCK_OFFSET : ATOM_BLOCK_OFFSET);
@@ -195,7 +197,7 @@ int make_gc_scan_struct_code_per_type(char *out, type_info_t *info, int type_num
             else
             {
                 len += add_code_row(out + len, indent + 3,      "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, %u);", type_table[type].size - sizeof(uint64_t));
-                len += add_code_row(out + len, indent + 3,      "memcpy(dst, block %u);", type_table[type].size + sizeof(uint64_t));
+                len += add_code_row(out + len, indent + 3,      "memcpy(dst, block, %u);", type_table[type].size + sizeof(uint64_t));
             }
             
             len += add_code_row(out + len, indent + 3,          "block_set_forward(block, dst);");
@@ -210,19 +212,6 @@ int make_gc_scan_struct_code_per_type(char *out, type_info_t *info, int type_num
     
     return len;
 }
-
-//         case N:
-//             block = ptr - block_offset;
-//             if(block_has_forward(block))
-//             {
-//                 ptr = block_get_forward(block);
-//             }
-//             else
-//             {
-//                 dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, size);
-//                 memcpy(block, dst, size);
-//                 block_set_forward(block, dst);
-//             }
 
 int make_gc_scan_struct_code(char *out)
 {
@@ -364,6 +353,8 @@ int make_gc_walk_array(char *out)
     XGEN_TYPE_TABLE(XGEN_MAKE_DESCRIPTOR_VARIABLES)
     
     XGEN_TYPE_TABLE(XGEN_MAKE_DESCRIPTORS)
+    
+    len = 0;
     
     len += add_code_row(out + len, 0, "int gc_custom_walk_array(block_t *block)");
     len += add_code_row(out + len, 0, "{");

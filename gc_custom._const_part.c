@@ -123,7 +123,7 @@ int gc_custom_collect()
  * @par size size of a roots arraay
  * @return 0 if everything went well, error code otherwise
  */
-int gc_custom_collect_from_roots(void *roots[], size_t size)
+int gc_custom_collect_from_roots(root_ptr roots[], size_t size)
 {
     block_t *todo_ptr;
     int i;
@@ -133,7 +133,7 @@ int gc_custom_collect_from_roots(void *roots[], size_t size)
     
     for(i = 0; i < size; i++)
     {
-      gc_custom_scan_ptr(roots[i], TYPE_PTR, 0); //TODO hotfix!
+      roots[i].ptr = gc_custom_scan_ptr(roots[i].ptr, TYPE_PTR, roots[i].is_array);
     }                                                                   
     
     while(todo_ptr < gc_cheney_base_remaining_to_space)
