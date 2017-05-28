@@ -224,16 +224,16 @@ int make_gc_scan_struct_code(char *out)
     len += add_code_row(out + len, 0, "int gc_custom_scan_struct(void *ptr, int type)");
     len += add_code_row(out + len, 0, "{");
     
-    len += add_code_row(out + len, 1, "block_t *block;");
-    len += add_code_row(out + len, 1, "void *dst, **scanned;");
+    len += add_code_row(out + len, 1,   "block_t *block;");
+    len += add_code_row(out + len, 1,   "void *dst, **scanned;");
     
-    len += add_code_row(out + len, 1, "switch(type)");
-    len += add_code_row(out + len, 1, "{");
+    len += add_code_row(out + len, 1,   "switch(type)");
+    len += add_code_row(out + len, 1,   "{");
     
     XGEN_TYPE_TABLE(XGEN_GC_SCAN_STRUCT)
     
-    len += add_code_row(out + len, 1, "}");
-    len += add_code_row(out + len, 1, "return 0;");
+    len += add_code_row(out + len, 1,   "}");
+    len += add_code_row(out + len, 1,   "return 0;");
     len += add_code_row(out + len, 0, "}");
 }
 
@@ -272,61 +272,50 @@ int make_gc_scan_ptr_code(char *out)
     len = 0;
     len += add_code_row(out + len, 0, "void *gc_custom_scan_ptr(void *ptr, uint64_t type, int is_array)");
     len += add_code_row(out + len, 0, "{");
-    len += add_code_row(out + len, 1, "block_t *block;");
-    len += add_code_row(out + len, 1, "block = (block_t*)((art_ptr_t)ptr - (is_array ? 16 : 8));");
-//     len += add_code_row(out + len, 1, "for(block = gc_cheney_base_from_space; block < gc_cheney_base_remaining_block; block = next_block(block))");
-//     len += add_code_row(out + len, 1, "{");
-//     len += add_code_row(out + len, 2, "if(block_get_type(block) == type || type == TYPE_PTR)");
-//     len += add_code_row(out + len, 2, "{");
-//     len += add_code_row(out + len, 3, "if(is_pointer_to(block, ptr))");
-//     len += add_code_row(out + len, 3, "{");
-    len += add_code_row(out + len, 1, "if(gc_cheney_base_is_old_mem(block))");
-    len += add_code_row(out + len, 1, "{");
-    len += add_code_row(out + len, 4, "if(!block_has_forward(block))");
-    len += add_code_row(out + len, 4, "{");
-    len += add_code_row(out + len, 5, "block_t *dst;");
-    len += add_code_row(out + len, 5, "if(is_array)");
-    len += add_code_row(out + len, 5, "{");
-    len += add_code_row(out + len, 6, "size_t byte_size;");
-    len += add_code_row(out + len, 6, "switch(block_get_type(block))");
-    len += add_code_row(out + len, 6, "{");
+    len += add_code_row(out + len, 1,   "block_t *block;");
+    len += add_code_row(out + len, 1,   "block = (block_t*)((art_ptr_t)ptr - (is_array ? 16 : 8));");
+    len += add_code_row(out + len, 1,   "if(gc_cheney_base_is_old_mem(block))");
+    len += add_code_row(out + len, 1,   "{");
+    len += add_code_row(out + len, 4,       "if(!block_has_forward(block))");
+    len += add_code_row(out + len, 4,       "{");
+    len += add_code_row(out + len, 5,           "block_t *dst;");
+    len += add_code_row(out + len, 5,           "if(is_array)");
+    len += add_code_row(out + len, 5,           "{");
+    len += add_code_row(out + len, 6,               "size_t byte_size;");
+    len += add_code_row(out + len, 6,               "switch(block_get_type(block))");
+    len += add_code_row(out + len, 6,               "{");
     
     XGEN_TYPE_TABLE(XGEN_GC_SCAN_PTR_ARRAY)
     
-    len += add_code_row(out + len, 6, "default:"); //Default behaviour as std cheney, should not be hit
-    len += add_code_row(out + len, 6, "{"); //code block needed for variable definition!
-    len += add_code_row(out + len, 7, "size_t block_size = block_get_size(block);");
-    len += add_code_row(out + len, 7, "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, block_size - sizeof(block_t));");
-    len += add_code_row(out + len, 7, "memcpy(dst, block, block_size);");
-    len += add_code_row(out + len, 6, "}");
-    len += add_code_row(out + len, 6, "}");
-    len += add_code_row(out + len, 5, "}");
-    len += add_code_row(out + len, 5, "else");
-    len += add_code_row(out + len, 5, "{");
-    len += add_code_row(out + len, 6, "switch(block_get_type(block))");
-    len += add_code_row(out + len, 6, "{");
+    len += add_code_row(out + len, 6,               "default:"); //Default behaviour as std cheney, should not be hit
+    len += add_code_row(out + len, 6,               "{"); //code block needed for variable definition!
+    len += add_code_row(out + len, 7,                   "size_t block_size = block_get_size(block);");
+    len += add_code_row(out + len, 7,                   "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, block_size - sizeof(block_t));");
+    len += add_code_row(out + len, 7,                   "memcpy(dst, block, block_size);");
+    len += add_code_row(out + len, 6,               "}");
+    len += add_code_row(out + len, 6,               "}");
+    len += add_code_row(out + len, 5,           "}");
+    len += add_code_row(out + len, 5,           "else");
+    len += add_code_row(out + len, 5,           "{");
+    len += add_code_row(out + len, 6,               "switch(block_get_type(block))");
+    len += add_code_row(out + len, 6,               "{");
     
     XGEN_TYPE_TABLE(XGEN_GC_SCAN_PTR_ATOM)
     
-    len += add_code_row(out + len, 6, "default:"); //Default behaviour as std cheney, should not be hit
-    len += add_code_row(out + len, 6, "{"); //code block needed for variable definition!
-    len += add_code_row(out + len, 7, "size_t block_size = block_get_size(block);");
-    len += add_code_row(out + len, 7, "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, block_size - sizeof(block_t));");
-    len += add_code_row(out + len, 7, "memcpy(dst, block, block_size);");
-    len += add_code_row(out + len, 6, "}");
-    len += add_code_row(out + len, 6, "}");
-    len += add_code_row(out + len, 5, "}");
+    len += add_code_row(out + len, 6,               "default:"); //Default behaviour as std cheney, should not be hit
+    len += add_code_row(out + len, 6,               "{"); //code block needed for variable definition!
+    len += add_code_row(out + len, 7,                   "size_t block_size = block_get_size(block);");
+    len += add_code_row(out + len, 7,                   "dst = gc_cheney_base_get_mem((void**)&gc_cheney_base_remaining_to_space, block_size - sizeof(block_t));");
+    len += add_code_row(out + len, 7,                   "memcpy(dst, block, block_size);");
+    len += add_code_row(out + len, 6,               "}");
+    len += add_code_row(out + len, 6,               "}");
+    len += add_code_row(out + len, 5,           "}");
     
-    len += add_code_row(out + len, 5, "block_set_forward(block, dst);");
-//     len += add_code_row(out + len, 5, "return dst;");
-    len += add_code_row(out + len, 4, "}");
-//     len += add_code_row(out + len, 4, "else");
-    len += add_code_row(out + len, 3, "return gc_cheney_base_get_forwarding_addr(ptr, block, block_get_forward(block));");
-    len += add_code_row(out + len, 1, "}");
-//     len += add_code_row(out + len, 3, "}");
-//     len += add_code_row(out + len, 2, "}");
-//     len += add_code_row(out + len, 1, "}");
-    len += add_code_row(out + len, 1, "return NULL;");
+    len += add_code_row(out + len, 5,           "block_set_forward(block, dst);");
+    len += add_code_row(out + len, 4,       "}");
+    len += add_code_row(out + len, 3,       "return gc_cheney_base_get_forwarding_addr(ptr, block, block_get_forward(block));");
+    len += add_code_row(out + len, 1,   "}");
+    len += add_code_row(out + len, 1,   "return NULL;");
     len += add_code_row(out + len, 0, "}");
     
     return len;    
@@ -338,7 +327,7 @@ int make_gc_walk_array_per_type(char *out,type_info_t *info, int type_num, size_
     
     if(info->number_of_references > 0)
     {
-        len += add_code_row(out + len, indent    , "case %d:", type_num);
+        len += add_code_row(out + len, indent, "case %d:", type_num);
         len += add_code_row(out + len, indent + 1, "for(ptr = get_data_start(block); ptr < get_data_end(block); ptr += %u)", (unsigned)info->size);
         len += add_code_row(out + len, indent + 2, "gc_custom_scan_struct(ptr, %d);", type_num);
         len += add_code_row(out + len, indent + 1, "break;");
@@ -359,18 +348,18 @@ int make_gc_walk_array(char *out)
     len += add_code_row(out + len, 0, "int gc_custom_walk_array(block_t *block)");
     len += add_code_row(out + len, 0, "{");
     
-    len += add_code_row(out + len, 1, "if(block_is_struct_block(block))"); //TODO This might be not necessary as non-struct options are excluded durign code generation
-    len += add_code_row(out + len, 1, "{");
-    len += add_code_row(out + len, 2, "void *ptr;");
-    len += add_code_row(out + len, 2, "uint64_t type;");
-    len += add_code_row(out + len, 2, "type = block_get_type(block);");
-    len += add_code_row(out + len, 2, "switch(type)");
-    len += add_code_row(out + len, 2, "{");
+    len += add_code_row(out + len, 1,   "if(block_is_struct_block(block))"); //TODO This might be not necessary as non-struct options are excluded durign code generation
+    len += add_code_row(out + len, 1,   "{");
+    len += add_code_row(out + len, 2,       "void *ptr;");
+    len += add_code_row(out + len, 2,       "uint64_t type;");
+    len += add_code_row(out + len, 2,       "type = block_get_type(block);");
+    len += add_code_row(out + len, 2,       "switch(type)");
+    len += add_code_row(out + len, 2,       "{");
 
     XGEN_TYPE_TABLE(XGEN_GC_WALK_ARRAY)
     
-    len += add_code_row(out + len, 2, "}"); 
-    len += add_code_row(out + len, 1, "}");
+    len += add_code_row(out + len, 2,       "}"); 
+    len += add_code_row(out + len, 1,   "}");
     len += add_code_row(out + len, 0, "}");
     
     len = 0;
